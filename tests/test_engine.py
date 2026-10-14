@@ -156,7 +156,7 @@ def test_simulacao_nao_altera_nada(tmp_path):
     files = make_tree(src)
     r = run(mode=Mode.COPY, sources=[str(src)], dest=str(tmp_path / "dst"), dry_run=True)
     assert not (tmp_path / "dst").exists()
-    assert len([p for p in r.plan if p.action == "copiar"]) == len(files)
+    assert len([p for p in r.plan if p.action == "copy"]) == len(files)
 
 
 def test_mover_mesmo_volume_renomeia(tmp_path):

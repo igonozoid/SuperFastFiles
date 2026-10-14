@@ -14,8 +14,19 @@ Interface segue os padrões do **IGNF Finora** (`../Claude_IGNF Finora_Py`): mes
 - `ui/` — `main_window` (Sidebar + Header + QStackedWidget, NAV por chave), `copy_page`, `other_pages`,
   `engine_bridge.JobController` (Runner numa thread; QTimer lê `stats.snapshot()` 10x/s).
 
+## Idiomas (i18n)
+- O texto-fonte é PT-BR, sempre dentro de `tr("...")` (`superfastfiles/i18n.py`), com placeholders nomeados:
+  `tr("{n} arquivos", n=3)`. Nunca `tr(variável)` nem `tr(f"...")`. Vale para UI, CLI e mensagens do motor.
+- Texto traduzível não pode ser constante de módulo (o idioma é escolhido depois do import): use função
+  (`mode_label`, `nav_text`). Códigos internos ficam estáveis (ex.: ações da simulação `copy`/`skip`).
+- Mudou ou criou texto: `python tools/i18n.py` (atualiza `assets/locales/*.json`), traduza os vazios e rode
+  `python tools/i18n.py --check` — o teste `test_catalogos_completos` falha se faltar tradução.
+- Novo idioma: copie `en.json`, traduza, acrescente em `i18n.LANGUAGES` e em `ui/locale_qt.QT_LOCALES`.
+- O log técnico (`superfastfiles.log`) fica em português; números com `format.py` (separadores do idioma).
+- Dados da empresa (Sobre): `core/vendor.py`, iguais aos do Finora — mude nos dois.
+
 ## Regras (herdadas do Finora)
-- Textos da UI em PT-BR, linguagem simples; termos técnicos ganham "?" com tooltip (`widgets.help_icon`).
+- Linguagem simples; termos técnicos ganham "?" com tooltip (`widgets.help_icon`).
 - Ícones qtawesome `fa6s.`/`fa6.`. Cores só pelos tokens de `ui/theme.py` (nada de cor fixa em widget).
 - Densidade: linhas 26px, fonte 9pt, espaçamentos 4/8/12. Números (MB/s, bytes, tempo) em fonte mono.
 - Cartões de seção: `widgets.section(título, ícone, t)`. Botões: `widgets.button(texto, variant, t, ícone)`.

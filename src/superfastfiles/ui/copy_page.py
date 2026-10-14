@@ -14,20 +14,27 @@ import qtawesome as qta
 from superfastfiles import format as fmt
 from superfastfiles.core import settings
 from superfastfiles.engine import JobSpec, Mode, Overwrite
-from superfastfiles.engine.job import MODE_LABELS, OVERWRITE_LABELS
+from superfastfiles.engine.job import action_label, mode_label, overwrite_label
 from superfastfiles.engine.verify import ALGORITHM
+from superfastfiles.i18n import tr
 from superfastfiles.ui import theme
 from superfastfiles.ui.speed_chart import SpeedChart
 from superfastfiles.ui.tables import RowsModel, make_table
 from superfastfiles.ui.theme import SP_L, SP_M, SP_S
 from superfastfiles.ui.widgets import KpiCard, _paint, button, field_label, help_icon, page_scroll, section, set_tone
 
-MODE_HELP = {
-    Mode.COPY: "Copia para o destino. Nada é apagado; o que já está igual é pulado.",
-    Mode.MOVE: "Copia e apaga da origem. No mesmo disco, só renomeia (instantâneo).",
-    Mode.SYNC: "Deixa o destino igual à origem: copia o que mudou e apaga do destino o que não existe mais na origem.",
-    Mode.DELETE: "Apaga as origens definitivamente (não vai para a Lixeira).",
-}
+def mode_help(m: Mode) -> str:
+    return {
+        Mode.COPY: tr("Copia para o destino. Nada é apagado; o que já está igual é pulado."),
+        Mode.MOVE: tr("Copia e apaga da origem. No mesmo disco, só renomeia (instantâneo)."),
+        Mode.SYNC: tr("Deixa o destino igual à origem: copia o que mudou e apaga do destino o que não existe mais "
+                      "na origem."),
+        Mode.DELETE: tr("Apaga as origens definitivamente (não vai para a Lixeira)."),
+    }[m]
+
+
+def run_label(m: Mode) -> str:
+    return {Mode.COPY: tr("Copiar"), Mode.MOVE: tr("Mover"), Mode.SYNC: tr("Sincronizar"), Mode.DELETE: tr("Apagar")}[m]
 MODE_ICONS = {Mode.COPY: "fa6s.copy", Mode.MOVE: "fa6s.right-from-bracket", Mode.SYNC: "fa6s.rotate",
               Mode.DELETE: "fa6s.trash-can"}
 
@@ -109,7 +116,7 @@ class PlanDialog(QDialog):
 
     def __init__(self, parent, plan, snap: dict):
         super().__init__(parent)
-        self.setWindowTitle("Simulação — nada foi alterado")
+        self.setWindowTitle(tr("Simulação — nada foi alterado"))
         self.resize(900, 520)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(SP_L, SP_L, SP_L, SP_L)
@@ -117,24 +124,26 @@ class PlanDialog(QDialog):
         counts: dict[str, int] = {}
         for p in plan:
             counts[p.action] = counts.get(p.action, 0) + 1
-        resumo = " · ".join(f"{k}: {fmt.count(v)}" for k, v in counts.items()) or "Nada a fazer: o destino já está igual."
+        resumo = (" · ".join(f"{action_label(k)}: {fmt.count(v)}" for k, v in counts.items())
+                  or tr("Nada a fazer: o destino já está igual."))
         lay.addWidget(QLabel(resumo, objectName="sectionTitle"))
-        info = QLabel(f"{fmt.size(snap['scan_bytes'])} seriam copiados. Pulados (iguais): "
-                      f"{fmt.count(snap['skipped_files'])}.")
+        info = QLabel(tr("{size} seriam copiados. Pulados (iguais): {skipped}.", size=fmt.size(snap["scan_bytes"]),
+                         skipped=fmt.count(snap["skipped_files"])))
         info.setProperty("role", "muted")
         lay.addWidget(info)
-        model = RowsModel(["Ação", "Caminho", "Tamanho"], mono={2}, right={2})
+        model = RowsModel([tr("Ação"), tr("Caminho"), tr("Tamanho")], mono={2}, right={2})
         shown = plan[:50_000]
-        tone = {"apagar": "neg", "apagar pasta": "neg", "sobrescrever": "acc", "copiar": "pos"}
-        model.set_rows([[p.action, p.path, fmt.size(p.size) if p.size else ""] for p in shown],
+        tone = {"delete": "neg", "rmdir": "neg", "overwrite": "acc", "copy": "pos"}
+        model.set_rows([[action_label(p.action), p.path, fmt.size(p.size) if p.size else ""] for p in shown],
                        tones=[tone.get(p.action) for p in shown])
         model.theme_name = settings.get_theme()
         lay.addWidget(make_table(model, 1, {0: 120, 2: 100}), 1)
         if len(plan) > len(shown):
-            lay.addWidget(QLabel(f"Mostrando os primeiros {fmt.count(len(shown))} de {fmt.count(len(plan))}."))
+            lay.addWidget(QLabel(tr("Mostrando os primeiros {shown} de {total}.", shown=fmt.count(len(shown)),
+                                    total=fmt.count(len(plan)))))
         row = QHBoxLayout()
         row.addStretch(1)
-        close = button("Fechar", "primary")
+        close = button(tr("Fechar"), "primary")
         close.clicked.connect(self.accept)
         row.addWidget(close)
         lay.addLayout(row)
@@ -157,7 +166,7 @@ class CopyPage(QWidget):
         self.mode_group = QButtonGroup(self, exclusive=True)
         modes = list(Mode)
         for i, m in enumerate(modes):
-            b = button(MODE_LABELS[m], "seg", t, MODE_ICONS[m])
+            b = button(mode_label(m), "seg", t, MODE_ICONS[m])
             b.setCheckable(True)
             b.setMinimumWidth(110)
             b.setProperty("pos", "first" if i == 0 else "last" if i == len(modes) - 1 else "")
@@ -174,83 +183,83 @@ class CopyPage(QWidget):
         # Origem e destino ----------------------------------------------------------
         cols = QHBoxLayout()
         cols.setSpacing(SP_L)
-        src_card, sl = section("Origem", "fa6s.folder-open", t)
-        src_card.head.addWidget(help_icon("Arraste arquivos e pastas para cá, ou use os botões.\n"
-                                          "Cada pasta é copiada com o próprio nome dentro do destino.", t))
+        src_card, sl = section(tr("Origem"), "fa6s.folder-open", t)
+        src_card.head.addWidget(help_icon(tr("Arraste arquivos e pastas para cá, ou use os botões.\n"
+                                             "Cada pasta é copiada com o próprio nome dentro do destino."), t))
         self.sources = SourceList()
         self.sources.changed.connect(self._refresh_state)
         sl.addWidget(self.sources, 1)
-        hint = QLabel("Arraste arquivos e pastas para cá")
+        hint = QLabel(tr("Arraste arquivos e pastas para cá"))
         hint.setProperty("role", "field")
         sl.addWidget(hint)
         brow = QHBoxLayout()
         brow.setSpacing(SP_S)
-        add_dir = button("Pasta…", "secondary", t, "fa6s.folder-plus")
+        add_dir = button(tr("Pasta…"), "secondary", t, "fa6s.folder-plus")
         add_dir.clicked.connect(self._add_dir)
-        add_files = button("Arquivos…", "secondary", t, "fa6s.file-circle-plus")
+        add_files = button(tr("Arquivos…"), "secondary", t, "fa6s.file-circle-plus")
         add_files.clicked.connect(self._add_files)
-        rem = button("Remover", "secondary", t, "fa6s.minus")
+        rem = button(tr("Remover"), "secondary", t, "fa6s.minus")
         rem.clicked.connect(self.sources.remove_selected)
-        clear = button("Limpar", "link")
+        clear = button(tr("Limpar"), "link")
         clear.clicked.connect(lambda: (self.sources.clear(), self._refresh_state()))
         for w in (add_dir, add_files, rem):
             brow.addWidget(w)
         brow.addStretch(1)
         brow.addWidget(clear)
         sl.addLayout(brow)
-        self.contents_only = QCheckBox("Copiar só o conteúdo das pastas (sem criar a pasta no destino)")
+        self.contents_only = QCheckBox(tr("Copiar só o conteúdo das pastas (sem criar a pasta no destino)"))
         sl.addWidget(self.contents_only)
         cols.addWidget(src_card, 3)
 
         right = QVBoxLayout()
         right.setSpacing(SP_L)
-        self.dst_card, dl = section("Destino", "fa6s.hard-drive", t)
+        self.dst_card, dl = section(tr("Destino"), "fa6s.hard-drive", t)
         drow = QHBoxLayout()
         drow.setSpacing(SP_S)
         self.dest = DropLineEdit()
-        self.dest.setPlaceholderText("Pasta de destino (arraste ou digite)")
+        self.dest.setPlaceholderText(tr("Pasta de destino (arraste ou digite)"))
         self.dest.textChanged.connect(self._refresh_state)
-        browse = button("Procurar…", "secondary", t, "fa6s.folder-open")
+        browse = button(tr("Procurar…"), "secondary", t, "fa6s.folder-open")
         browse.clicked.connect(self._browse_dest)
         drow.addWidget(self.dest, 1)
         drow.addWidget(browse)
         dl.addLayout(drow)
         right.addWidget(self.dst_card)
 
-        opt_card, ol = section("Opções", "fa6s.sliders", t)
+        opt_card, ol = section(tr("Opções"), "fa6s.sliders", t)
         grid = QGridLayout()
         grid.setHorizontalSpacing(SP_L)
         grid.setVerticalSpacing(SP_S)
         self.overwrite = QComboBox()
         for o in Overwrite:
-            self.overwrite.addItem(OVERWRITE_LABELS[o], o.value)
-        self.ow_label = field_label("Quando o arquivo já existe no destino", t,
-                                    "Só os diferentes: compara tamanho e data de modificação (com 2 s de folga, "
-                                    "por causa de pendrives FAT/exFAT).")
+            self.overwrite.addItem(overwrite_label(o), o.value)
+        self.ow_label = field_label(tr("Quando o arquivo já existe no destino"), t,
+                                    tr("Só os diferentes: compara tamanho e data de modificação (com 2 s de folga, "
+                                       "por causa de pendrives FAT/exFAT)."))
         grid.addWidget(self.ow_label, 0, 0, 1, 2)
         grid.addWidget(self.overwrite, 1, 0, 1, 2)
         vrow = QHBoxLayout()
         vrow.setSpacing(SP_S)
-        self.verify = QCheckBox("Verificar depois de copiar")
+        self.verify = QCheckBox(tr("Verificar depois de copiar"))
         vrow.addWidget(self.verify)
-        vrow.addWidget(help_icon(f"Relê cada arquivo gravado direto do disco (sem cache) e compara o hash "
-                                 f"{ALGORITHM} com o da origem. Garante que a cópia está perfeita; "
-                                 f"leva mais tempo.", t))
+        vrow.addWidget(help_icon(tr("Relê cada arquivo gravado direto do disco (sem cache) e compara o hash "
+                                    "{algorithm} com o da origem. Garante que a cópia está perfeita; "
+                                    "leva mais tempo.", algorithm=ALGORITHM), t))
         vrow.addStretch(1)
         grid.addLayout(vrow, 2, 0, 1, 2)
-        self.preserve = QCheckBox("Manter as datas originais")
+        self.preserve = QCheckBox(tr("Manter as datas originais"))
         self.preserve.setChecked(True)
         grid.addWidget(self.preserve, 3, 0, 1, 2)
         ol.addLayout(grid)
         right.addWidget(opt_card)
 
-        flt_card, fl = section("Filtros", "fa6s.filter", t)
-        fl.addWidget(field_label("Incluir só", t, "Padrões separados por ponto e vírgula. Ex.: *.jpg; *.png\n"
-                                                    "Vazio = todos os arquivos."))
+        flt_card, fl = section(tr("Filtros"), "fa6s.filter", t)
+        fl.addWidget(field_label(tr("Incluir só"), t, tr("Padrões separados por ponto e vírgula. Ex.: *.jpg; *.png\n"
+                                                          "Vazio = todos os arquivos.")))
         self.include = QLineEdit(placeholderText="*.jpg; *.png")
         fl.addWidget(self.include)
-        fl.addWidget(field_label("Ignorar", t, "Arquivos ou pastas a pular, separados por ponto e vírgula.\n"
-                                               "Ex.: node_modules; *.tmp; Thumbs.db; .git"))
+        fl.addWidget(field_label(tr("Ignorar"), t, tr("Arquivos ou pastas a pular, separados por ponto e vírgula.\n"
+                                                     "Ex.: node_modules; *.tmp; Thumbs.db; .git")))
         self.exclude = QLineEdit(placeholderText="node_modules; *.tmp; Thumbs.db")
         fl.addWidget(self.exclude)
         right.addWidget(flt_card)
@@ -261,22 +270,22 @@ class CopyPage(QWidget):
         # Ações ----------------------------------------------------------------------
         actions = QHBoxLayout()
         actions.setSpacing(SP_M)
-        self.sim_btn = button("Simular", "secondary", t, "fa6s.eye")
-        self.sim_btn.setToolTip("Mostra o que seria feito, sem copiar nem apagar nada")
+        self.sim_btn = button(tr("Simular"), "secondary", t, "fa6s.eye")
+        self.sim_btn.setToolTip(tr("Mostra o que seria feito, sem copiar nem apagar nada"))
         self.sim_btn.clicked.connect(lambda: self.start(dry_run=True))
-        self.queue_btn = button("Pôr na fila", "secondary", t, "fa6s.list-check")
-        self.queue_btn.setToolTip("Guarda esta tarefa para rodar depois, em sequência com outras")
+        self.queue_btn = button(tr("Pôr na fila"), "secondary", t, "fa6s.list-check")
+        self.queue_btn.setToolTip(tr("Guarda esta tarefa para rodar depois, em sequência com outras"))
         self.queue_btn.clicked.connect(self._enqueue)
         self.strategy = QLabel()
         self.strategy.setProperty("role", "muted")
-        self.run_btn = QPushButton("Executar")
+        self.run_btn = QPushButton()
         self.run_btn.setProperty("variant", "primary")
         self.run_btn.setCursor(Qt.PointingHandCursor)
-        self.run_btn.setToolTip("Começar agora (Ctrl+Enter)")
+        self.run_btn.setToolTip(tr("Começar agora (Ctrl+Enter)"))
         self.run_btn.clicked.connect(lambda: self.start())
-        self.pause_btn = button("Pausar", "secondary", t, "fa6s.pause")
+        self.pause_btn = button(tr("Pausar"), "secondary", t, "fa6s.pause")
         self.pause_btn.clicked.connect(self._toggle_pause)
-        self.cancel_btn = button("Cancelar", "danger")
+        self.cancel_btn = button(tr("Cancelar"), "danger")
         self.cancel_btn.clicked.connect(self._cancel)
         actions.addWidget(self.sim_btn)
         actions.addWidget(self.queue_btn)
@@ -287,18 +296,18 @@ class CopyPage(QWidget):
         lay.addLayout(actions)
 
         # Andamento -------------------------------------------------------------------
-        prog_card, pl = section("Andamento", "fa6s.gauge-high", t)
-        self.state_lbl = QLabel("Pronto")
+        prog_card, pl = section(tr("Andamento"), "fa6s.gauge-high", t)
+        self.state_lbl = QLabel(tr("Pronto"))
         self.state_lbl.setProperty("role", "muted")
         prog_card.head.addWidget(self.state_lbl)
         kpis = QHBoxLayout()
         kpis.setSpacing(SP_M)
-        self.k_speed = KpiCard("fa6s.bolt", "Velocidade", "Média dos últimos 2 segundos. Na nota, a média geral.", t)
-        self.k_files = KpiCard("fa6s.file", "Arquivos", "Copiados / total a copiar. Na nota, arquivos por segundo "
-                               "e quantos foram pulados por já estarem iguais.", t)
-        self.k_bytes = KpiCard("fa6s.database", "Dados", "Copiado / total a copiar.", t)
-        self.k_eta = KpiCard("fa6s.hourglass-half", "Tempo restante", "Estimativa pela velocidade atual. Aparece "
-                             "quando a varredura das pastas termina.", t)
+        self.k_speed = KpiCard("fa6s.bolt", tr("Velocidade"), tr("Média dos últimos 2 segundos. Na nota, a média geral."), t)
+        self.k_files = KpiCard("fa6s.file", tr("Arquivos"), tr("Copiados / total a copiar. Na nota, arquivos por segundo "
+                                                   "e quantos foram pulados por já estarem iguais."), t)
+        self.k_bytes = KpiCard("fa6s.database", tr("Dados"), tr("Copiado / total a copiar."), t)
+        self.k_eta = KpiCard("fa6s.hourglass-half", tr("Tempo restante"), tr("Estimativa pela velocidade atual. Aparece "
+                                                                    "quando a varredura das pastas termina."), t)
         for k in (self.k_speed, self.k_files, self.k_bytes, self.k_eta):
             kpis.addWidget(k, 1)
         pl.addLayout(kpis)
@@ -326,17 +335,16 @@ class CopyPage(QWidget):
     def set_mode(self, m: Mode):
         self.mode = m
         self.mode_group.button(list(Mode).index(m)).setChecked(True)
-        self.mode_help.setText(MODE_HELP[m])
+        self.mode_help.setText(mode_help(m))
         delete = m == Mode.DELETE
         self.dst_card.setVisible(not delete)
         self.overwrite.setEnabled(not delete)
         self.ow_label.setEnabled(not delete)
         self.verify.setEnabled(not delete)
         self.preserve.setEnabled(not delete)
-        self.contents_only.setText("Apagar só o conteúdo das pastas (mantém a pasta vazia)" if delete else
-                                   "Copiar só o conteúdo das pastas (sem criar a pasta no destino)")
-        self.run_btn.setText({Mode.COPY: "Copiar", Mode.MOVE: "Mover", Mode.SYNC: "Sincronizar",
-                              Mode.DELETE: "Apagar"}[m])
+        self.contents_only.setText(tr("Apagar só o conteúdo das pastas (mantém a pasta vazia)") if delete else
+                                   tr("Copiar só o conteúdo das pastas (sem criar a pasta no destino)"))
+        self.run_btn.setText(run_label(m))
         self._refresh_state()
 
     def _refresh_state(self):
@@ -347,17 +355,17 @@ class CopyPage(QWidget):
         self.queue_btn.setEnabled(ok)
 
     def _add_dir(self):
-        d = QFileDialog.getExistingDirectory(self, "Escolha uma pasta de origem")
+        d = QFileDialog.getExistingDirectory(self, tr("Escolha uma pasta de origem"))
         if d:
             self.sources.add_paths([d])
 
     def _add_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Escolha os arquivos de origem")
+        files, _ = QFileDialog.getOpenFileNames(self, tr("Escolha os arquivos de origem"))
         if files:
             self.sources.add_paths(files)
 
     def _browse_dest(self):
-        d = QFileDialog.getExistingDirectory(self, "Escolha a pasta de destino", self.dest.text())
+        d = QFileDialog.getExistingDirectory(self, tr("Escolha a pasta de destino"), self.dest.text())
         if d:
             self.dest.setText(os.path.normpath(d))
 
@@ -410,16 +418,17 @@ class CopyPage(QWidget):
         if spec.mode == Mode.DELETE:
             n = len(spec.sources)
             return QMessageBox.question(
-                self, "Apagar definitivamente?",
-                f"Apagar {n} {'item' if n == 1 else 'itens'} e tudo o que houver dentro?\n\n"
-                "Os arquivos NÃO vão para a Lixeira. Dica: use Simular antes para ver a lista.",
+                self, tr("Apagar definitivamente?"),
+                (tr("Apagar 1 item e tudo o que houver dentro?") if n == 1 else
+                 tr("Apagar {n} itens e tudo o que houver dentro?", n=n)) + "\n\n" +
+                tr("Os arquivos NÃO vão para a Lixeira. Dica: use Simular antes para ver a lista."),
                 QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) == QMessageBox.Yes
         if spec.mode == Mode.SYNC:
             return QMessageBox.question(
-                self, "Sincronizar?",
-                f"O destino vai ficar igual à origem:\n{spec.dest}\n\n"
-                "Arquivos e pastas do destino que não existem na origem serão APAGADOS.\n"
-                "Dica: use Simular antes para ver o que será apagado.",
+                self, tr("Sincronizar?"),
+                tr("O destino vai ficar igual à origem:\n{dest}\n\n"
+                   "Arquivos e pastas do destino que não existem na origem serão APAGADOS.\n"
+                   "Dica: use Simular antes para ver o que será apagado.", dest=spec.dest),
                 QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) == QMessageBox.Yes
         return True
 
@@ -443,8 +452,8 @@ class CopyPage(QWidget):
             self.ctl.pause()
 
     def _cancel(self):
-        if QMessageBox.question(self, "Cancelar?", "Parar a tarefa agora? O que já foi copiado fica no destino; "
-                                "o arquivo que estava pela metade é apagado.",
+        if QMessageBox.question(self, tr("Cancelar?"), tr("Parar a tarefa agora? O que já foi copiado fica no "
+                                                        "destino; o arquivo que estava pela metade é apagado."),
                                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
             self.ctl.cancel()
 
@@ -464,26 +473,29 @@ class CopyPage(QWidget):
         self.bar.setValue(0)
         for k in (self.k_speed, self.k_files, self.k_bytes, self.k_eta):
             k.set("—")
-        self.state_lbl.setText("Simulando…" if spec.dry_run else "Varrendo e copiando…")
+        self.state_lbl.setText(tr("Simulando…") if spec.dry_run else tr("Varrendo e copiando…"))
         set_tone(self.state_lbl, None)
 
     def _on_tick(self, s: dict):
         if s.get("paused"):
-            self.state_lbl.setText("Pausado")
-            self.pause_btn.setText("Continuar")
+            self.state_lbl.setText(tr("Pausado"))
+            self.pause_btn.setText(tr("Continuar"))
             self.pause_btn.setProperty("qtaIcon", "fa6s.play|mut|11")
         else:
-            self.state_lbl.setText("Varrendo e copiando…" if s["scanning"] else "Copiando…")
-            self.pause_btn.setText("Pausar")
+            self.state_lbl.setText(tr("Varrendo e copiando…") if s["scanning"] else tr("Copiando…"))
+            self.pause_btn.setText(tr("Pausar"))
             self.pause_btn.setProperty("qtaIcon", "fa6s.pause|mut|11")
         _paint(self.pause_btn, self.t)
         avg = s["done_bytes"] / s["elapsed"] if s["elapsed"] > 0 else 0
-        self.k_speed.set(fmt.speed(s["speed"]), f"média {fmt.speed(avg)}")
+        self.k_speed.set(fmt.speed(s["speed"]), tr("média {speed}", speed=fmt.speed(avg)))
         total_files = s["scan_files"]
         self.k_files.set(f"{fmt.count(s['done_files'])} / {fmt.count(total_files)}{'+' if s['scanning'] else ''}",
-                         f"{s['files_per_s']:,.0f} arq/s · pulados {fmt.count(s['skipped_files'])}".replace(",", "."))
-        self.k_bytes.set(fmt.size(s["done_bytes"]), f"de {fmt.size(s['scan_bytes'])}{' (varrendo)' if s['scanning'] else ''}")
-        self.k_eta.set(fmt.duration(s["eta"]), f"decorrido {fmt.duration(s['elapsed'])}")
+                         tr("{rate} arq/s · pulados {skipped}", rate=fmt.count(s["files_per_s"]),
+                            skipped=fmt.count(s["skipped_files"])))
+        self.k_bytes.set(fmt.size(s["done_bytes"]),
+                         tr("de {size} (varrendo)", size=fmt.size(s["scan_bytes"])) if s["scanning"]
+                         else tr("de {size}", size=fmt.size(s["scan_bytes"])))
+        self.k_eta.set(fmt.duration(s["eta"]), tr("decorrido {time}", time=fmt.duration(s["elapsed"])))
         if s["scan_bytes"] > 0:
             self.bar.setValue(int(1000 * s["done_bytes"] / s["scan_bytes"]))
         elif not s["scanning"]:
@@ -497,22 +509,22 @@ class CopyPage(QWidget):
         self._set_running(False)
         self.current.setText(" ")
         if error:
-            self.state_lbl.setText("Não começou")
+            self.state_lbl.setText(tr("Não começou"))
             set_tone(self.state_lbl, "neg")
-            QMessageBox.warning(self, "Não foi possível começar", error)
+            QMessageBox.warning(self, tr("Não foi possível começar"), error)
             return
         if runner.cancelled:
-            self.state_lbl.setText("Cancelado")
+            self.state_lbl.setText(tr("Cancelado"))
             set_tone(self.state_lbl, "neg")
         elif s["errors"]:
-            self.state_lbl.setText(f"Terminou com {s['errors']} erro(s) — veja em Log")
+            self.state_lbl.setText(tr("Terminou com {n} erro(s) — veja em Log", n=s["errors"]))
             set_tone(self.state_lbl, "neg")
         else:
-            self.state_lbl.setText("Concluído")
+            self.state_lbl.setText(tr("Concluído"))
             set_tone(self.state_lbl, "pos")
             self.bar.setValue(1000)
-        self.k_speed.set(fmt.speed(s["avg_speed"]), "média geral")
-        self.k_eta.set(fmt.duration(s["elapsed"]), "tempo total")
+        self.k_speed.set(fmt.speed(s["avg_speed"]), tr("média geral"))
+        self.k_eta.set(fmt.duration(s["elapsed"]), tr("tempo total"))
         if runner.spec.dry_run:
             PlanDialog(self, runner.plan, s).exec()
 

@@ -21,7 +21,7 @@ sff = "superfastfiles.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-superfastfiles = ["assets/fonts/*"]
+superfastfiles = ["assets/fonts/*", "assets/locales/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

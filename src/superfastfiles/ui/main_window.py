@@ -12,7 +12,8 @@ import qtawesome as qta
 from superfastfiles import APP_NAME, __version__, format as fmt
 from superfastfiles.core import settings
 from superfastfiles.core.paths import DATA_DIR
-from superfastfiles.engine.job import MODE_LABELS
+from superfastfiles.engine.job import mode_label
+from superfastfiles.i18n import tr
 from superfastfiles.services import jobs
 from superfastfiles.ui import theme
 from superfastfiles.ui.copy_page import CopyPage
@@ -22,15 +23,21 @@ from superfastfiles.ui.widgets import retheme
 
 APP_ICON = "fa6s.bolt"
 
-# (chave, ícone, rótulo, subtítulo do cabeçalho). Use as chaves, não a posição.
-NAV = [
-    ("copy", "fa6s.copy", "Copiar", "Copiar, mover, sincronizar ou apagar"),
-    ("queue", "fa6s.list-check", "Fila", "Tarefas esperando para rodar em sequência"),
-    ("history", "fa6s.clock-rotate-left", "Histórico", "O que já foi feito, com tempo e velocidade"),
-    ("log", "fa6s.file-lines", "Log", "Detalhes e erros da última tarefa"),
-    ("settings", "fa6s.gear", "Configurações", "Aparência e desempenho"),
-]
+# (chave, ícone). Use as chaves, não a posição. Rótulos em nav_text (traduzidos na hora).
+NAV = [("copy", "fa6s.copy"), ("queue", "fa6s.list-check"), ("history", "fa6s.clock-rotate-left"),
+       ("log", "fa6s.file-lines"), ("settings", "fa6s.gear")]
 KEYS = [n[0] for n in NAV]
+
+
+def nav_text(key: str) -> tuple[str, str]:
+    """(rótulo do menu, subtítulo do cabeçalho)."""
+    return {
+        "copy": (tr("Copiar"), tr("Copiar, mover, sincronizar ou apagar")),
+        "queue": (tr("Fila"), tr("Tarefas esperando para rodar em sequência")),
+        "history": (tr("Histórico"), tr("O que já foi feito, com tempo e velocidade")),
+        "log": (tr("Log"), tr("Detalhes e erros da última tarefa")),
+        "settings": (tr("Configurações"), tr("Aparência, idioma e desempenho")),
+    }[key]
 
 
 class Sidebar(QWidget):
@@ -56,7 +63,7 @@ class Sidebar(QWidget):
         names.setContentsMargins(0, 0, 0, 0)
         names.setSpacing(0)
         names.addWidget(QLabel(APP_NAME, objectName="brandName"))
-        names.addWidget(QLabel("Copiador rápido", objectName="brandSub"))
+        names.addWidget(QLabel(tr("Copiador rápido"), objectName="brandSub"))
         bl.addWidget(self._brand_icon)
         bl.addWidget(self._names, 1)
         self._brand_layout = bl
@@ -72,7 +79,8 @@ class Sidebar(QWidget):
         scroll.setWidget(nav)
         self.group = QButtonGroup(self, exclusive=True)
         self.buttons = []
-        for i, (_key, icon, label, _sub) in enumerate(NAV):
+        for i, (key, icon) in enumerate(NAV):
+            label = nav_text(key)[0]
             b = QPushButton(label, objectName="navItem", checkable=True)
             b.setCursor(Qt.PointingHandCursor)
             b.setIconSize(QSize(14, 14))
@@ -121,8 +129,8 @@ class Sidebar(QWidget):
 
     def _theme_text(self):
         rail = self.mode == "rail"
-        self.theme_btn.setText("" if rail else ("Tema claro" if self._dark else "Tema escuro"))
-        self.collapse_btn.setToolTip("Mostrar o menu com nomes" if rail else "Recolher o menu (só ícones)")
+        self.theme_btn.setText("" if rail else (tr("Tema claro") if self._dark else tr("Tema escuro")))
+        self.collapse_btn.setToolTip(tr("Mostrar o menu com nomes") if rail else tr("Recolher o menu (só ícones)"))
         self._bottom.setDirection(QHBoxLayout.TopToBottom if rail else QHBoxLayout.LeftToRight)
         if hasattr(self, "_t"):
             self.collapse_btn.setIcon(qta.icon("fa6s.angles-right" if rail else "fa6s.angles-left",
@@ -137,7 +145,7 @@ class Sidebar(QWidget):
         self._theme_text()
         self.theme_btn.setIcon(qta.icon("fa6s.sun" if self._dark else "fa6s.moon", color=t["mut"],
                                         color_active=t["fg"]))
-        self.theme_btn.setToolTip("Alternar entre tema claro e escuro (Ctrl+T)")
+        self.theme_btn.setToolTip(tr("Alternar entre tema claro e escuro (Ctrl+T)"))
 
 
 class Header(QFrame):
@@ -163,7 +171,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.quitting = False
         self.running_queue = False
-        self.setWindowTitle(f"{APP_NAME} — copiador de arquivos")
+        self.setWindowTitle(self._title())
         self.setMinimumSize(860, 560)
         self.setAcceptDrops(True)
         geo = settings.get_geometry()
@@ -212,6 +220,7 @@ class MainWindow(QMainWindow):
         queue.run_queue.connect(self.run_queue)
         queue.edit_job.connect(self._edit_job)
         self.pages["settings"].theme_changed.connect(self.set_theme)
+        self.pages["settings"].language_changed.connect(self._language_changed)
         self.ctl.tick.connect(self._on_tick)
         self.ctl.finished.connect(self._on_finished)
         for i in range(len(NAV)):
@@ -231,7 +240,8 @@ class MainWindow(QMainWindow):
 
     def go_to(self, where: str | int):
         index = KEYS.index(where) if isinstance(where, str) else where
-        key, _icon, label, subtitle = NAV[index]
+        key = KEYS[index]
+        label, subtitle = nav_text(key)
         page = self.pages[key]
         if hasattr(page, "refresh"):
             page.refresh()
@@ -256,7 +266,7 @@ class MainWindow(QMainWindow):
         sb = self.statusBar()
         sb.setSizeGripEnabled(False)
         sb.setFixedHeight(24)
-        where = QLabel(f"Dados em {DATA_DIR}")
+        where = QLabel(tr("Dados em {path}", path=DATA_DIR))
         sb.addWidget(where)
         sb.addPermanentWidget(QLabel(f"v{__version__}"))
 
@@ -279,7 +289,7 @@ class MainWindow(QMainWindow):
     def set_theme(self, name: str):
         self.apply_theme(name)
         settings.set_theme(name)
-        self.statusBar().showMessage("Tema claro ativado" if name == "light" else "Tema escuro ativado", 2500)
+        self.statusBar().showMessage(tr("Tema claro ativado") if name == "light" else tr("Tema escuro ativado"), 2500)
 
     # Arrastar arquivos para qualquer lugar da janela = origens -----------------------------
     def dragEnterEvent(self, e):
@@ -296,7 +306,7 @@ class MainWindow(QMainWindow):
     def enqueue(self, spec):
         n = jobs.enqueue(spec)
         self.sidebar.set_queue_count(n)
-        self.statusBar().showMessage(f"Tarefa posta na fila ({n} esperando)", 3000)
+        self.statusBar().showMessage(tr("Tarefa posta na fila ({n} esperando)", n=n), 3000)
 
     def _edit_job(self, spec):
         self.pages["copy"].load_spec(spec)
@@ -305,7 +315,7 @@ class MainWindow(QMainWindow):
 
     def run_queue(self):
         if self.ctl.busy:
-            self.statusBar().showMessage("Espere a tarefa atual terminar", 3000)
+            self.statusBar().showMessage(tr("Espere a tarefa atual terminar"), 3000)
             return
         self.running_queue = True
         self._next_in_queue()
@@ -324,24 +334,26 @@ class MainWindow(QMainWindow):
     def _on_tick(self, s: dict):
         pct = f"{100 * s['done_bytes'] / s['scan_bytes']:.0f}% · " if s["scan_bytes"] and not s["scanning"] else ""
         txt = f"{pct}{fmt.speed(s['speed'])}"
-        self.header.status.setText(("Pausado · " if s.get("paused") else "") + txt)
+        self.header.status.setText((tr("Pausado") + " · " if s.get("paused") else "") + txt)
         self.setWindowTitle(f"{pct}{APP_NAME}")
 
     def _on_finished(self, runner, snap: dict, error: str):
         self.header.status.setText("")
-        self.setWindowTitle(f"{APP_NAME} — copiador de arquivos")
+        self.setWindowTitle(self._title())
         if error:
             self.running_queue = False
             return
         jobs.add_history(runner.spec, snap, runner.cancelled, runner.stats.errors)
         self.pages["log"].show_runner(runner, snap)
-        msg = (f"{MODE_LABELS[runner.spec.mode]}: {fmt.count(snap['done_files'])} arquivos, "
-               f"{fmt.size(snap['done_bytes'])} em {fmt.duration(snap['elapsed'])} "
-               f"({fmt.speed(snap['avg_speed'])})" + (f" · {snap['errors']} erro(s)" if snap["errors"] else ""))
+        msg = mode_label(runner.spec.mode) + ": " + tr(
+            "{files} arquivos, {size} em {time} ({speed})", files=fmt.count(snap["done_files"]),
+            size=fmt.size(snap["done_bytes"]), time=fmt.duration(snap["elapsed"]), speed=fmt.speed(snap["avg_speed"]))
+        if snap["errors"]:
+            msg += " · " + tr("{n} erro(s)", n=snap["errors"])
         self.statusBar().showMessage(msg, 15000)
         if not self.isActiveWindow() and self.tray is not None and settings.get_tray() and not runner.spec.dry_run:
             self.tray.show()
-            self.tray.showMessage(APP_NAME, ("Cancelado — " if runner.cancelled else "Concluído — ") + msg,
+            self.tray.showMessage(APP_NAME, (tr("Cancelado") if runner.cancelled else tr("Concluído")) + " — " + msg,
                                   QSystemTrayIcon.Warning if snap["errors"] else QSystemTrayIcon.Information, 8000)
         if self.running_queue and not runner.cancelled:
             self._next_in_queue()
@@ -356,8 +368,8 @@ class MainWindow(QMainWindow):
         self.tray = QSystemTrayIcon(self)
         self.tray.setToolTip(APP_NAME)
         menu = QMenu(self)
-        menu.addAction("Abrir", self._show)
-        menu.addAction("Sair", self._quit)
+        menu.addAction(tr("Abrir"), self._show)
+        menu.addAction(tr("Sair"), self._quit)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(lambda r: self._show() if r in (QSystemTrayIcon.Trigger,
                                                                      QSystemTrayIcon.DoubleClick) else None)
@@ -372,11 +384,46 @@ class MainWindow(QMainWindow):
         self.quitting = True
         self.close()
 
+    @staticmethod
+    def _title() -> str:
+        return tr("{app} — copiador de arquivos", app=APP_NAME)
+
+    def _language_changed(self, code: str):
+        """O idioma vale a partir da próxima abertura (as telas são montadas com os textos já traduzidos)."""
+        from PySide6.QtWidgets import QMessageBox
+        from superfastfiles import i18n
+        new = i18n.system_language() if code == "auto" else code
+        if new == i18n.current():
+            return
+        i18n.setup(new)                 # a pergunta já sai no idioma escolhido
+        ask = QMessageBox.question(self, tr("Idioma alterado"),
+                                   tr("O novo idioma vale depois de reabrir o programa. Reabrir agora?"),
+                                   QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if ask == QMessageBox.Yes:
+            self.restart()
+
+    def restart(self):
+        """Reabre o programa (mesmo jeito do Finora)."""
+        import sys
+        from PySide6.QtCore import QProcess
+        if self.ctl.busy:
+            self.statusBar().showMessage(tr("Espere a tarefa atual terminar"), 3000)
+            return
+        self.quitting = True
+        self.close()
+        from superfastfiles.core import single_instance
+        single_instance.stop()
+        if getattr(sys, "frozen", False):
+            QProcess.startDetached(sys.executable, [])
+        else:
+            QProcess.startDetached(sys.executable, ["-m", "superfastfiles"])
+        QApplication.instance().quit()
+
     def closeEvent(self, event):
         if self.ctl.busy:
             from PySide6.QtWidgets import QMessageBox
-            if QMessageBox.question(self, "Tarefa em andamento", "Uma tarefa ainda está rodando. Cancelar e "
-                                    "fechar?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            if QMessageBox.question(self, tr("Tarefa em andamento"), tr("Uma tarefa ainda está rodando. Cancelar e "
+                                                                          "fechar?"), QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
                 event.ignore()
                 return
             self.ctl.cancel()

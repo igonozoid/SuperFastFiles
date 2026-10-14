@@ -11,6 +11,8 @@ from collections import deque
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 
+from superfastfiles.i18n import tr
+
 
 class Mode(StrEnum):
     COPY = "copy"          # copiar (não apaga nada no destino)
@@ -26,9 +28,20 @@ class Overwrite(StrEnum):
     NEVER = "never"        # nunca sobrescrever
 
 
-MODE_LABELS = {Mode.COPY: "Copiar", Mode.MOVE: "Mover", Mode.SYNC: "Sincronizar", Mode.DELETE: "Apagar"}
-OVERWRITE_LABELS = {Overwrite.DIFF: "Só os diferentes (tamanho/data)", Overwrite.NEWER: "Só se a origem for mais nova",
-                    Overwrite.ALWAYS: "Sempre sobrescrever", Overwrite.NEVER: "Nunca sobrescrever"}
+def mode_label(m: Mode | str) -> str:
+    return {Mode.COPY: tr("Copiar"), Mode.MOVE: tr("Mover"), Mode.SYNC: tr("Sincronizar"),
+            Mode.DELETE: tr("Apagar")}[Mode(m)]
+
+
+def overwrite_label(o: Overwrite | str) -> str:
+    return {Overwrite.DIFF: tr("Só os diferentes (tamanho/data)"), Overwrite.NEWER: tr("Só se a origem for mais nova"),
+            Overwrite.ALWAYS: tr("Sempre sobrescrever"), Overwrite.NEVER: tr("Nunca sobrescrever")}[Overwrite(o)]
+
+
+# Ações da simulação: código estável no motor, texto traduzido só na hora de mostrar
+def action_label(code: str) -> str:
+    return {"copy": tr("copiar"), "overwrite": tr("sobrescrever"), "skip": tr("pular"), "delete": tr("apagar"),
+            "mkdir": tr("criar pasta"), "rmdir": tr("apagar pasta"), "link": tr("link")}.get(code, code)
 
 
 @dataclass
@@ -107,7 +120,7 @@ class JobStats:
     def error(self, path: str, message: str):
         with self._lock:
             self.errors.append(FileError(path, message))
-            self.log.append(f"ERRO  {path}: {message}")
+            self.log.append(tr("ERRO  {path}: {message}", path=path, message=message))
 
     def note(self, line: str):
         with self._lock:
@@ -131,6 +144,6 @@ class JobStats:
 @dataclass
 class PlanItem:
     """Uma ação da simulação (dry-run)."""
-    action: str        # copiar | sobrescrever | pular | apagar | criar pasta | mover
+    action: str        # copy | overwrite | skip | delete | mkdir | rmdir | link (texto: action_label)
     path: str
     size: int = 0

@@ -12,6 +12,8 @@ import os
 import sys
 from dataclasses import dataclass
 
+from superfastfiles.i18n import tr
+
 WIN = sys.platform == "win32"
 
 
@@ -24,7 +26,7 @@ class DiskInfo:
     @property
     def kind(self) -> str:
         if self.network:
-            return "rede"
+            return tr("rede")
         if self.rotational is None:
             return "?"
         return "HDD" if self.rotational else "SSD"
@@ -197,18 +199,18 @@ def choose_strategy(src: DiskInfo, dst: DiskInfo, forced: str = "auto", threads:
         else:
             mode = "ssd"
     if mode == "same":
-        s = Strategy("Mesmo disco (HDD): sequencial, blocos grandes", 1, 1, 32 << 20, 3, 2)
+        s = Strategy(tr("Mesmo disco (HDD): sequencial, blocos grandes"), 1, 1, 32 << 20, 3, 2)
     elif mode == "hdd":
-        s = Strategy("Disco rígido (HDD): poucas threads", 4, 1, 16 << 20, 4, 4)
+        s = Strategy(tr("Disco rígido (HDD): poucas threads"), 4, 1, 16 << 20, 4, 4)
     elif mode == "net":
-        s = Strategy("Rede: muitas threads", min(32, cpu * 4), 2, 8 << 20, 4, 16)
+        s = Strategy(tr("Rede: muitas threads"), min(32, cpu * 4), 2, 8 << 20, 4, 16)
     else:
         # Arquivos pequenos: o custo é abrir/criar/fechar (e o antivírus olhando cada um); muitas threads
         # escondem essa latência. Medido: 64 threads ~40% mais rápido que 16 num NVMe com 16 núcleos.
-        s = Strategy("SSD/NVMe: leitura e escrita em paralelo", min(64, max(8, cpu * 4)), 2, 8 << 20, 4, 8)
+        s = Strategy(tr("SSD/NVMe: leitura e escrita em paralelo"), min(64, max(8, cpu * 4)), 2, 8 << 20, 4, 8)
     s.mode = mode
     if same and mode == "ssd":
-        s.name = "Mesmo SSD: paralelo"
+        s.name = tr("Mesmo SSD: paralelo")
     if threads:
         s.small_threads = threads
     if buffer_mb:

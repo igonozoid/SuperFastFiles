@@ -22,6 +22,7 @@ from superfastfiles.engine.job import JobSpec, JobStats, Mode, Overwrite, PlanIt
 from superfastfiles.engine.metadata import display_path, long_path
 from superfastfiles.engine.scanner import DONE, DirListing, Entry, Filters, Scanner
 from superfastfiles.engine.verify import VerifyError
+from superfastfiles.i18n import tr
 
 WIN = sys.platform == "win32"
 LARGE = 8 << 20                    # a partir daqui o arquivo vai para a fila de "grandes" (pipeline)
@@ -98,28 +99,29 @@ class Runner:
             rel = "" if contents or not name or (WIN and name.endswith(":")) else name
             roots.append((p.rstrip("/\\") if rel else p, rel))
         if not roots:
-            raise JobError("Escolha pelo menos uma origem.")
+            raise JobError(tr("Escolha pelo menos uma origem."))
         return roots
 
     # Copiar / Mover / Sincronizar --------------------------------------------------
     def _copy_job(self):
         spec, stats = self.spec, self.stats
         if not spec.dest.strip():
-            raise JobError("Escolha a pasta de destino.")
+            raise JobError(tr("Escolha a pasta de destino."))
         roots = self._roots()
         dest = long_path(spec.dest)
         for src, _rel in roots:
             a, b = os.path.normcase(src), os.path.normcase(dest)
             if os.path.isdir(src) and (a == b or b.startswith(a.rstrip("\\/") + os.sep)):
-                raise JobError(f"O destino fica dentro da origem ({display_path(src)}): a cópia não teria fim.")
+                raise JobError(tr("O destino fica dentro da origem ({path}): a cópia não teria fim.",
+                                  path=display_path(src)))
         if not spec.dry_run:
             os.makedirs(dest, exist_ok=True)
 
         strat = choose_strategy(disk_info(roots[0][0]), disk_info(dest), spec.disk_mode, spec.threads,
                                 spec.buffer_mb)
         stats.strategy = f"{strat.name} · {self.io.name}"
-        stats.note(f"Estratégia: {stats.strategy} · {strat.small_threads} threads, blocos de "
-                   f"{strat.chunk >> 20} MB")
+        stats.note(tr("Estratégia: {name} · {threads} threads, blocos de {mb} MB", name=stats.strategy,
+                      threads=strat.small_threads, mb=strat.chunk >> 20))
 
         if spec.mode == Mode.MOVE and not spec.dry_run and not self.filters.active:
             roots = self._move_by_rename(roots, dest)
@@ -160,7 +162,7 @@ class Runner:
             small.shutdown(wait=True, cancel_futures=self._cancel.is_set())
             large.shutdown(wait=True, cancel_futures=self._cancel.is_set())
         if self._cancel.is_set():
-            stats.note("Cancelado pelo usuário")
+            stats.note(tr("Cancelado pelo usuário"))
             return
         if spec.mode == Mode.SYNC:
             self._sync_delete()
@@ -182,7 +184,8 @@ class Runner:
                 try:
                     os.rename(src, target)
                     self.stats.add(done_files=1)
-                    self.stats.note(f"Movido (renomeado) {display_path(src)} -> {display_path(target)}")
+                    self.stats.note(tr("Movido (renomeado) {src} -> {dst}", src=display_path(src),
+                                       dst=display_path(target)))
                     continue
                 except OSError:
                     pass
@@ -203,13 +206,13 @@ class Runner:
         if self.spec.mode == Mode.MOVE:
             self.src_dirs.append(e.src)
         if info is not None and not info[2]:
-            self.stats.error(display_path(e.src), "no destino existe um arquivo com o nome desta pasta")
+            self.stats.error(display_path(e.src), tr("no destino existe um arquivo com o nome desta pasta"))
             self.dir_cache[dst] = {}
             return
         if info is None:
             self.dir_cache[dst] = None          # vai ser criada agora: nada dentro
             if self.spec.dry_run:
-                self.plan.append(PlanItem("criar pasta", display_path(dst)))
+                self.plan.append(PlanItem("mkdir", display_path(dst)))
             else:
                 try:
                     os.makedirs(dst, exist_ok=True)
@@ -222,36 +225,36 @@ class Runner:
         self.dir_times.append((dst, e))
 
     def _decide(self, e: Entry, info) -> str | None:
-        """'copiar' | 'sobrescrever' | None (pular)."""
+        """'copy' | 'overwrite' | 'error' | None (pular)."""
         if info is None:
-            return "copiar"
+            return "copy"
         size, mtime, is_dir = info
         if is_dir:
-            return "erro"
+            return "error"
         ow = self.spec.overwrite
         if ow == Overwrite.ALWAYS:
-            return "sobrescrever"
+            return "overwrite"
         if ow == Overwrite.NEVER:
             return None
         if ow == Overwrite.NEWER:
-            return "sobrescrever" if e.mtime_ns > mtime + TIME_TOLERANCE_NS else None
+            return "overwrite" if e.mtime_ns > mtime + TIME_TOLERANCE_NS else None
         same = size == e.size and abs(mtime - e.mtime_ns) <= TIME_TOLERANCE_NS
-        return None if same else "sobrescrever"
+        return None if same else "overwrite"
 
     def _on_file(self, e: Entry, small, large, slots):
         dst = os.path.join(self.dest, e.rel)
         parent = self._listing(os.path.dirname(dst))
         info = parent.get(_key(os.path.basename(dst))) if parent else None
         action = self._decide(e, info)
-        if action == "erro":
-            self.stats.error(display_path(e.src), "no destino existe uma pasta com o nome deste arquivo")
+        if action == "error":
+            self.stats.error(display_path(e.src), tr("no destino existe uma pasta com o nome deste arquivo"))
             return
         if action is None:
             self.stats.add(skipped_files=1, skipped_bytes=e.size)
             if self.spec.mode == Mode.MOVE and info is not None and info[0] == e.size:
                 self.moved_ok.append(e.src)
             if self.spec.dry_run:
-                self.plan.append(PlanItem("pular", display_path(e.src), e.size))
+                self.plan.append(PlanItem("skip", display_path(e.src), e.size))
             return
         self.stats.add(scan_files=1, scan_bytes=e.size)
         if self.spec.dry_run:
@@ -309,12 +312,12 @@ class Runner:
             return
         try:
             if WIN and os.path.isjunction(e.src):
-                self.stats.note(f"Ignorado (junção do Windows): {display_path(e.src)}")
+                self.stats.note(tr("Ignorado (junção do Windows): {path}", path=display_path(e.src)))
                 return
             metadata.copy_link(e.src, dst)
             self.stats.add(done_files=1)
         except OSError as ex:
-            self.stats.error(display_path(e.src), f"link simbólico: {ex.strerror or ex}")
+            self.stats.error(display_path(e.src), tr("link simbólico: {error}", error=ex.strerror or ex))
 
     def _sync_delete(self):
         """Apaga no destino o que não existe mais na origem (só nas pastas que foram lidas por inteiro)."""
@@ -341,7 +344,7 @@ class Runner:
                     continue
                 path = os.path.join(folder, name)
                 if self.spec.dry_run:
-                    self.plan.append(PlanItem("apagar", display_path(path), size))
+                    self.plan.append(PlanItem("delete", display_path(path), size))
                     continue
                 self._remove(path, is_dir)
 
@@ -358,7 +361,7 @@ class Runner:
                     metadata.make_writable(path)
                     os.remove(path)
                 self.stats.add(deleted_files=1)
-            self.stats.note(f"Apagado no destino: {display_path(path)}")
+            self.stats.note(tr("Apagado no destino: {path}", path=display_path(path)))
         except OSError as ex:
             self.stats.error(display_path(path), ex.strerror or str(ex))
 
@@ -371,7 +374,7 @@ class Runner:
                     metadata.make_writable(p)
                     os.remove(p)
             except OSError as ex:
-                self.stats.error(display_path(p), f"não foi possível apagar a origem: {ex.strerror or ex}")
+                self.stats.error(display_path(p), tr("não foi possível apagar a origem: {error}", error=ex.strerror or ex))
         dirs = sorted(set(self.src_dirs) | {s for s, rel in roots if rel and os.path.isdir(s)},
                       key=lambda d: -d.count(os.sep))
         for d in dirs:
@@ -385,8 +388,8 @@ class Runner:
         stats, spec = self.stats, self.spec
         roots = [(long_path(s), s) for s in spec.sources if s.strip()]
         if not roots:
-            raise JobError("Escolha o que apagar.")
-        stats.strategy = "Apagar em paralelo"
+            raise JobError(tr("Escolha o que apagar."))
+        stats.strategy = tr("Apagar em paralelo")
         q: queue.Queue = queue.Queue(maxsize=50_000)
         scan_roots = []
         files_top = []
@@ -396,7 +399,7 @@ class Runner:
             elif os.path.lexists(p):
                 files_top.append(p)
             else:
-                stats.error(orig, "não encontrado")
+                stats.error(orig, tr("não encontrado"))
         dirs = [p for p, orig in roots if os.path.isdir(p) and not os.path.islink(p)
                 and not orig.endswith(("/", "\\"))]
         workers = ThreadPoolExecutor(16, thread_name_prefix="del")
@@ -420,7 +423,7 @@ class Runner:
             return
         for d in sorted(set(dirs), key=lambda d: -d.count(os.sep)):
             if spec.dry_run:
-                self.plan.append(PlanItem("apagar pasta", display_path(d)))
+                self.plan.append(PlanItem("rmdir", display_path(d)))
                 continue
             try:
                 os.rmdir(d)
@@ -431,7 +434,7 @@ class Runner:
     def _del_file(self, path: str, size: int, workers):
         self.stats.add(scan_files=1, scan_bytes=size)
         if self.spec.dry_run:
-            self.plan.append(PlanItem("apagar", display_path(path), size))
+            self.plan.append(PlanItem("delete", display_path(path), size))
             self.stats.add(done_files=1, done_bytes=size)
             return
 

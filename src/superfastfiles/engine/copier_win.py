@@ -152,7 +152,7 @@ class WinWrite(WriteHandle):
 
 
 class WinIO(FileIO):
-    name = "Windows (Win32 direto)"
+    name = "Win32"
     # Benchmark (tools/bench.py, SSD NVMe): nos arquivos grandes o pipeline sem cache bate o CopyFileEx;
     # nos pequenos, o CopyFileEx ganha (menos chamadas por arquivo). Em rede, o CopyFileEx faz cópia no
     # servidor (ODX/SMB), então lá ele fica também com os grandes.

@@ -37,6 +37,8 @@ def get_nav(default="sidebar") -> str: return _get("ui/nav", default)
 def set_nav(mode: str): _set("ui/nav", mode)
 def get_geometry(): return _s().value("ui/geometry")
 def set_geometry(g): _set("ui/geometry", g)
+def get_language() -> str: return _get("ui/language", "auto")       # "auto" | código de i18n.LANGUAGES
+def set_language(code: str): _set("ui/language", code)
 def get_tray() -> bool: return _get("ui/tray", True, bool)
 def set_tray(on: bool): _set("ui/tray", on)
 

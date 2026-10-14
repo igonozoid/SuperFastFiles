@@ -2,7 +2,10 @@
 
 Copiador de arquivos rápido para Windows, Linux e macOS, inspirado no [FastCopy](https://fastcopy.jp).
 Copiar, Mover, Sincronizar (espelhar) e Apagar, com filtros, verificação por hash (xxh3-128), simulação,
-fila de tarefas, histórico e linha de comando. Interface no padrão visual do IGNF Finora (tema claro/escuro).
+fila de tarefas, histórico e linha de comando. Interface no padrão visual do IGNF Finora (tema claro/escuro),
+em português, inglês e espanhol (Configurações › Idioma; na linha de comando, `--lang`).
+
+Desenvolvido por IGNF Projetos e Serviços de Engenharia LTDA — https://ignf.com.br
 
 ## Por que é rápido
 - **Estratégia por disco**: detecta SSD, HDD, rede e se origem e destino são o mesmo disco físico.

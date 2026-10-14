@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from superfastfiles.core.paths import DATA_DIR
-from superfastfiles.engine.job import JobSpec, MODE_LABELS, Mode
+from superfastfiles.engine.job import JobSpec, Mode, mode_label
 
 HISTORY_FILE = DATA_DIR / "historico.json"
 QUEUE_FILE = DATA_DIR / "fila.json"
@@ -20,8 +20,8 @@ def describe(spec: JobSpec) -> str:
     src = spec.sources[0] if spec.sources else "—"
     more = f" (+{len(spec.sources) - 1})" if len(spec.sources) > 1 else ""
     if spec.mode == Mode.DELETE:
-        return f"{MODE_LABELS[spec.mode]}: {src}{more}"
-    return f"{MODE_LABELS[spec.mode]}: {src}{more} → {spec.dest}"
+        return f"{mode_label(spec.mode)}: {src}{more}"
+    return f"{mode_label(spec.mode)}: {src}{more} → {spec.dest}"
 
 
 @dataclass

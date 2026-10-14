@@ -36,8 +36,8 @@ def writable(folder: Path) -> bool:
 
 
 def choose_data_dir(app: Path | None = None, platform: str | None = None, frozen: bool | None = None,
-                    env: dict | None = None) -> tuple[Path, str | None]:
-    """(pasta de dados, aviso para o usuário ou None)."""
+                    env: dict | None = None) -> tuple[Path, Path | None]:
+    """(pasta de dados, pasta do programa que não deixou gravar — para avisar o usuário — ou None)."""
     env = os.environ if env is None else env
     platform = platform or sys.platform
     frozen = getattr(sys, "frozen", False) if frozen is None else frozen
@@ -48,10 +48,17 @@ def choose_data_dir(app: Path | None = None, platform: str | None = None, frozen
     candidate = (app or app_dir()) / "data"
     if writable(candidate):
         return candidate, None
-    fallback = home_data_dir()
-    return fallback, (f"A pasta do programa ({candidate.parent}) não permite gravar dados.\n"
-                      f"Suas preferências e o histórico vão ficar em {fallback}.")
+    return home_data_dir(), candidate.parent
 
 
-DATA_DIR, DATA_NOTICE = choose_data_dir()
+DATA_DIR, BLOCKED_DIR = choose_data_dir()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def data_notice() -> str | None:
+    """Aviso (no idioma ativo) quando os dados não puderam ficar ao lado do programa."""
+    if BLOCKED_DIR is None:
+        return None
+    from superfastfiles.i18n import tr
+    return tr("A pasta do programa ({blocked}) não permite gravar dados.\n"
+              "Suas preferências e o histórico vão ficar em {folder}.", blocked=BLOCKED_DIR, folder=DATA_DIR)

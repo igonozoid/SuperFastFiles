@@ -3,17 +3,19 @@ import sys
 from superfastfiles import APP_NAME
 
 
-def _setup_app(argv):
+def _setup_app(argv, lang: str | None = None):
     from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QApplication
+    from superfastfiles import i18n
     from superfastfiles.core import settings
-    from superfastfiles.ui import fonts, locale_br, theme
+    from superfastfiles.ui import fonts, locale_qt, theme
+    lang = i18n.setup(lang)
     app = QApplication(argv)
     app.setOrganizationName(settings.ORG)
     app.setApplicationName(settings.APP)
     app.setStyle("Fusion")
     loaded = fonts.load()
-    ok_tr = locale_br.install(app)
+    ok_tr = locale_qt.install(app, lang)
     font = QFont()
     font.setFamilies(theme.FONT_UI)
     font.setPointSize(theme.FONT_PT)
@@ -30,12 +32,12 @@ def smoke_test() -> int:
     from PySide6.QtCore import QTimer
     from superfastfiles import __version__
     from superfastfiles.engine import JobSpec, Mode, Runner
-    app, loaded, ok_tr = _setup_app(sys.argv)
+    app, loaded, ok_tr = _setup_app(sys.argv, "pt_BR")
     problems = []
     if not {"IBM Plex Sans", "IBM Plex Mono"} <= loaded:
         problems.append("fontes IBM Plex")
     if not ok_tr:
-        problems.append("tradução pt-BR do Qt")
+        problems.append("tradução do Qt")
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "origem"
         (src / "sub").mkdir(parents=True)
@@ -46,12 +48,18 @@ def smoke_test() -> int:
         if r.stats.errors or (Path(tmp) / "destino" / "origem" / "sub" / "b.bin").read_bytes() != \
                 (src / "sub" / "b.bin").read_bytes():
             problems.append("motor de cópia")
+    from superfastfiles import i18n
     from superfastfiles.ui.main_window import KEYS, MainWindow
-    w = MainWindow()
-    for key in KEYS:
-        w.go_to(key)
-    w.toggle_theme()
-    w.toggle_theme()
+    for lang in i18n.LANGUAGES:                    # cada idioma: catálogo no pacote e todas as telas abrem
+        if i18n.setup(lang) != lang or (lang != i18n.SOURCE and i18n.tr("Configurações") == "Configurações"):
+            problems.append(f"idioma {lang}")
+        w = MainWindow()
+        for key in KEYS:
+            w.go_to(key)
+        w.toggle_theme()
+        w.toggle_theme()
+        w.close()
+    i18n.setup("pt_BR")
     QTimer.singleShot(300, app.quit)
     app.exec()
     print(f"{APP_NAME} {__version__}: " + ("OK" if not problems else "PROBLEMAS: " + ", ".join(problems)))
@@ -82,9 +90,10 @@ def main():
     if not {"IBM Plex Sans", "IBM Plex Mono"} <= loaded:
         logs.log.warning("Fontes IBM Plex não carregadas; usando as do sistema")
     if not ok_tr:
-        logs.log.warning("Tradução pt-BR do Qt não encontrada")
-    if paths.DATA_NOTICE:
-        QMessageBox.information(None, "Onde ficam seus dados", paths.DATA_NOTICE)
+        logs.log.warning("Tradução do Qt não encontrada para o idioma escolhido")
+    if paths.data_notice():
+        from superfastfiles.i18n import tr
+        QMessageBox.information(None, tr("Onde ficam seus dados"), paths.data_notice())
     from superfastfiles.ui.main_window import MainWindow
     w = MainWindow()
     single_instance.window = w

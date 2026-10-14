@@ -63,7 +63,7 @@ class PosixWrite(_PosixWrite):
 
 
 class PosixIO(FileIO):
-    name = "Linux (kernel)" if LINUX else "macOS (kernel)" if MAC else "POSIX"
+    name = "Linux kernel" if LINUX else "macOS kernel" if MAC else "POSIX"
 
     def __init__(self):
         self._reflink_ok = True

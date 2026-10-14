@@ -18,4 +18,6 @@ except ImportError:          # pragma: no cover — xxhash é dependência, mas 
 
 
 class VerifyError(Exception):
-    pass
+    def __init__(self, message: str | None = None):
+        from superfastfiles.i18n import tr
+        super().__init__(message or tr("o conteúdo gravado no destino não confere com a origem"))

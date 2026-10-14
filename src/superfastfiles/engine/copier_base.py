@@ -59,7 +59,7 @@ class WriteHandle:
 
 class FileIO:
     """Camada de E/S por sistema. A genérica usa os.open/os.readv/os.write."""
-    name = "genérico"
+    name = "POSIX"
     native_large = True        # False: arquivos grandes sempre pelo pipeline (medido mais rápido no Windows)
 
     def open_read(self, path: str, unbuffered: bool) -> ReadHandle:
@@ -278,4 +278,4 @@ class Copier:
             rh.close()
             pool.put(buf)
         if total != size or hasher.digest() != expected:
-            raise VerifyError("o conteúdo gravado no destino não confere com a origem")
+            raise VerifyError()

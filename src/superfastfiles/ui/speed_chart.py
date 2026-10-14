@@ -8,6 +8,7 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from superfastfiles import format as fmt
+from superfastfiles.i18n import tr
 
 POINTS = 600          # 60 s com um ponto a cada 100 ms
 
@@ -65,5 +66,5 @@ class SpeedChart(QWidget):
         f = p.font()
         f.setPointSize(8)
         p.setFont(f)
-        p.drawText(4, 12, f"pico {fmt.speed(max(self.values))}")
-        p.drawText(self.rect().adjusted(0, 0, -4, 0), Qt.AlignRight | Qt.AlignTop, "últimos 60 s")
+        p.drawText(4, 12, tr("pico {speed}", speed=fmt.speed(max(self.values))))
+        p.drawText(self.rect().adjusted(0, 0, -4, 0), Qt.AlignRight | Qt.AlignTop, tr("últimos 60 s"))

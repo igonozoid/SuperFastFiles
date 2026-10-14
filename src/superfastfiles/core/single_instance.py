@@ -31,6 +31,14 @@ def listen(name: str) -> None:
     _server.listen(name)
 
 
+def stop() -> None:
+    """Libera o nome (antes de reabrir o programa, para a nova janela não achar que já está aberto)."""
+    global _server
+    if _server is not None:
+        _server.close()
+        _server = None
+
+
 def _on_connection():
     while _server is not None and _server.hasPendingConnections():
         sock = _server.nextPendingConnection()
