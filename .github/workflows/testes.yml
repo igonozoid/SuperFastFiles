@@ -1,0 +1,24 @@
+name: testes
+on: [push, pull_request]
+jobs:
+  testes:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bibliotecas do Qt (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libgl1 libdbus-1-3
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - run: python -m superfastfiles --teste
+        env:
+          QT_QPA_PLATFORM: offscreen
