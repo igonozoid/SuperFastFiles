@@ -22,6 +22,7 @@ class DiskInfo:
     ids: frozenset          # discos físicos que guardam o volume (vazio = não deu para saber)
     rotational: bool | None
     network: bool = False
+    usb: bool = False
 
     @property
     def kind(self) -> str:
@@ -82,6 +83,34 @@ if WIN:
     class _DEVICE_SEEK_PENALTY_DESCRIPTOR(ctypes.Structure):
         _fields_ = [("Version", wt.DWORD), ("Size", wt.DWORD), ("IncursSeekPenalty", wt.BOOLEAN)]
 
+    class _DEVICE_TRIM_DESCRIPTOR(ctypes.Structure):
+        _fields_ = [("Version", wt.DWORD), ("Size", wt.DWORD), ("TrimEnabled", wt.BOOLEAN)]
+
+    class _STORAGE_DEVICE_DESCRIPTOR(ctypes.Structure):
+        _fields_ = [("Version", wt.DWORD), ("Size", wt.DWORD), ("DeviceType", ctypes.c_ubyte),
+                    ("DeviceTypeModifier", ctypes.c_ubyte), ("RemovableMedia", wt.BOOLEAN),
+                    ("CommandQueueing", wt.BOOLEAN), ("VendorIdOffset", wt.DWORD), ("ProductIdOffset", wt.DWORD),
+                    ("ProductRevisionOffset", wt.DWORD), ("SerialNumberOffset", wt.DWORD), ("BusType", ctypes.c_int),
+                    ("RawPropertiesLength", wt.DWORD), ("Raw", ctypes.c_ubyte * 512)]
+
+    BUS_USB = 7
+    PROP_DEVICE, PROP_SEEK_PENALTY, PROP_TRIM = 0, 7, 8
+
+    def _rotational(h) -> tuple[bool | None, bool]:
+        """(giratório?, é USB?). Muitas pontes USB não respondem à pergunta direta ("tem atraso de busca?").
+        Aí: TRIM ligado = SSD; USB sem TRIM = tratar como HD (escolha segura: com poucas threads um SSD perde
+        pouco, mas com 64 threads um HD fica muito lento, a cabeça de leitura pulando de arquivo em arquivo)."""
+        dev = _STORAGE_DEVICE_DESCRIPTOR()
+        usb = _ioctl(h, IOCTL_STORAGE_QUERY_PROPERTY, _STORAGE_PROPERTY_QUERY(PROP_DEVICE, 0), dev) and \
+            dev.BusType == BUS_USB
+        seek = _DEVICE_SEEK_PENALTY_DESCRIPTOR()
+        if _ioctl(h, IOCTL_STORAGE_QUERY_PROPERTY, _STORAGE_PROPERTY_QUERY(PROP_SEEK_PENALTY, 0), seek):
+            return bool(seek.IncursSeekPenalty), usb
+        trim = _DEVICE_TRIM_DESCRIPTOR()
+        if _ioctl(h, IOCTL_STORAGE_QUERY_PROPERTY, _STORAGE_PROPERTY_QUERY(PROP_TRIM, 0), trim) and trim.TrimEnabled:
+            return False, usb
+        return (True if usb else None), usb
+
     def _ioctl(h, code, inbuf, outbuf) -> bool:
         ret = wt.DWORD(0)
         return bool(_k32.DeviceIoControl(h, code, ctypes.byref(inbuf) if inbuf is not None else None,
@@ -111,14 +140,10 @@ if WIN:
             if _ioctl(h, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, None, ext):
                 for i in range(min(ext.NumberOfDiskExtents, 16)):
                     disks.add(ext.Extents[i].DiskNumber)
-            rot = None
-            q = _STORAGE_PROPERTY_QUERY(7, 0)          # StorageDeviceSeekPenaltyProperty
-            d = _DEVICE_SEEK_PENALTY_DESCRIPTOR()
-            if _ioctl(h, IOCTL_STORAGE_QUERY_PROPERTY, q, d):
-                rot = bool(d.IncursSeekPenalty)
+            rot, usb = _rotational(h)
         finally:
             _k32.CloseHandle(h)
-        return DiskInfo(frozenset(f"disk{n}" for n in disks) or frozenset({vol.lower()}), rot)
+        return DiskInfo(frozenset(f"disk{n}" for n in disks) or frozenset({vol.lower()}), rot, usb=usb)
 
 # Linux / macOS -------------------------------------------------------------------
 else:

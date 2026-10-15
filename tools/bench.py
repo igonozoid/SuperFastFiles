@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -58,9 +59,13 @@ def rm(p: Path):
         shutil.rmtree(p, ignore_errors=True)
 
 
+VERIFY = False
+
+
 def t_sff(native: bool):
     def run(src: Path, dst: Path):
-        r = Runner(JobSpec(mode=Mode.COPY, sources=[str(src) + os.sep], dest=str(dst), native=native))
+        r = Runner(JobSpec(mode=Mode.COPY, sources=[str(src) + os.sep], dest=str(dst), native=native,
+                           verify=VERIFY))
         r.run()
         assert not r.stats.errors, r.stats.errors[:3]
         return r.stats.strategy
@@ -75,7 +80,9 @@ def t_robocopy(src: Path, dst: Path):
 def t_fastcopy(exe: str):
     def run(src: Path, dst: Path):
         dst.mkdir(parents=True, exist_ok=True)
-        subprocess.run([exe, "/cmd=diff", "/auto_close", "/no_ui", str(src) + "\\", f"/to={dst}\\"],
+        # /no_ui: sem diálogos e fecha sozinho; sem log nem estimativa (não entram na conta de tempo)
+        subprocess.run([exe, "/cmd=force_copy", "/no_ui", "/estimate=FALSE", "/log=FALSE",
+                        f"/verify={'TRUE' if VERIFY else 'FALSE'}", str(src) + "\\", f"/to={dst}\\"],
                        stdout=subprocess.DEVNULL)
     return run
 
@@ -92,12 +99,18 @@ def main():
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--fastcopy", default="")
     ap.add_argument("--skip", default="", help="ferramentas a pular, separadas por vírgula")
+    ap.add_argument("--verify", action="store_true", help="com verificação (só sff e FastCopy)")
     a = ap.parse_args()
+    global VERIFY
+    VERIFY = a.verify
     tools = {"sff (nativo)": t_sff(True), "sff (pipeline)": t_sff(False), "shutil": t_shutil}
     if sys.platform == "win32":
         tools["robocopy /MT:32"] = t_robocopy
     if a.fastcopy:
         tools["FastCopy"] = t_fastcopy(a.fastcopy)
+    if a.verify:
+        for k in ("shutil", "robocopy /MT:32"):
+            tools.pop(k, None)
     for s in a.skip.split(","):
         tools.pop(s.strip(), None)
     work, dest = Path(a.work), Path(a.dest)
@@ -108,11 +121,14 @@ def main():
         times: dict[str, list[float]] = {k: [] for k in tools}
         for _ in range(a.runs):
             for label, fn in tools.items():
-                dst = dest / f"{name}-{label.split()[0]}"
+                dst = dest / f"{name}-{re.sub(r'[^A-Za-z0-9]+', '-', label).strip('-')}"
                 rm(dst)
                 t0 = time.perf_counter()
                 info = fn(src, dst)
                 times[label].append(time.perf_counter() - t0)
+                got = sum(1 for p in dst.rglob("*") if p.is_file() and p.name != ".ok")
+                if got != n:
+                    print(f"   !! {label}: copiou {got} de {n} arquivos")
                 if info and _ == 0:
                     print(f"   ({label}: {info})")
                 rm(dst)
