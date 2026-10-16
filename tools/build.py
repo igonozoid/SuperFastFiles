@@ -2,7 +2,8 @@
 
     python tools/build.py
 
-Resultado em dist/: a pasta SuperFastFiles (SuperFastFiles + sff) e SuperFastFiles-<versão>-<sistema>.zip/.tar.gz.
+Resultado em dist/: a pasta SuperFastFiles (SuperFastFiles + sff) e SuperFastFiles-<versão>-<sistema>.zip
+(Windows; no macOS, com o SuperFastFiles.app) ou .tar.gz (Linux).
 Antes de compactar, roda o executável com --teste numa pasta de dados vazia e a CLI numa cópia de verdade:
 se algo faltar no pacote, o build falha. No fim grava dist/SHA256SUMS.txt (publique junto do .zip, para quem baixar
 conferir que o arquivo é o original).
@@ -75,6 +76,17 @@ def archive() -> Path:
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
             for f in PKG.rglob("*"):
                 z.write(f, Path("SuperFastFiles") / f.relative_to(PKG))
+    elif sys.platform == "darwin":
+        # ditto (do próprio macOS) guarda permissões e links do .app; o zipfile do Python estragaria o app
+        stage = DIST / "macos-zip"
+        shutil.rmtree(stage, ignore_errors=True)
+        stage.mkdir()
+        shutil.copytree(DIST / "SuperFastFiles.app", stage / "SuperFastFiles.app", symlinks=True)
+        shutil.copy(ROOT / "packaging" / "LEIA-ME.txt", stage / "LEIA-ME.txt")
+        out = DIST / f"{name}.zip"
+        out.unlink(missing_ok=True)
+        subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", str(stage), str(out)], check=True)
+        shutil.rmtree(stage)
     else:
         out = DIST / f"{name}.tar.gz"
         with tarfile.open(out, "w:gz") as t:

@@ -1,0 +1,117 @@
+name: release
+
+# Gera o pacote portátil nos 3 sistemas, nas máquinas do próprio GitHub (não precisa ter Mac).
+# - Tag "v*" (ex.: v0.3.0): gera Windows, macOS e Linux e publica na Release dessa tag (cria se não existir).
+# - Botão "Run workflow" (aba Actions): escolhe a tag e os sistemas. Serve para completar uma Release que já
+#   existe (ex.: só macOS e Linux) sem mexer nos arquivos que já estão lá.
+# - Push na main mexendo no empacotamento: só gera e testa (confere que o build não quebrou), não publica.
+# Cada pacote passa pelo autoteste do tools/build.py antes de ser publicado. O código usado é o de onde o
+# workflow rodou (a tag, ou a branch escolhida no botão), que pode ser mais novo que a tag da Release.
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths: ["packaging/**", "tools/build.py", ".github/workflows/release.yml"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag da versão (ex.: v0.2.0). Vazio = só gerar, sem publicar"
+        required: false
+        default: ""
+      platforms:
+        description: "Sistemas, separados por vírgula"
+        required: false
+        default: "windows,macos,linux"
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      tag: ${{ steps.m.outputs.tag }}
+    steps:
+      - id: m
+        shell: python
+        env:
+          PLATFORMS: ${{ inputs.platforms || 'windows,macos,linux' }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF: ${{ github.ref }}
+        run: |
+          import json, os
+          runners = {"windows": "windows-latest", "macos": "macos-latest", "linux": "ubuntu-22.04"}
+          wanted = [p.strip() for p in os.environ["PLATFORMS"].split(",") if p.strip() in runners]
+          include = [{"name": p, "os": runners[p]} for p in wanted]
+          ref = os.environ["REF"]
+          tag = os.environ["INPUT_TAG"] or (ref.removeprefix("refs/tags/") if ref.startswith("refs/tags/v") else "")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"matrix={json.dumps({'include': include})}\n")
+              f.write(f"tag={tag}\n")
+
+  build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bibliotecas do Qt (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libxkbcommon-x11-0 libgl1 libdbus-1-3 libfontconfig1
+      - name: Dependências
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[build]" pillow
+      - name: Gerar e testar o pacote
+        run: python tools/build.py
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONIOENCODING: utf-8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pacote-${{ matrix.name }}
+          path: |
+            dist/SuperFastFiles-*.zip
+            dist/SuperFastFiles-*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, build]
+    if: needs.plan.outputs.tag != ''
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publicar na Release
+        run: |
+          set -e
+          cd out
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "SuperFastFiles ${TAG#v}" --notes-file ../packaging/release-notes.md
+          fi
+          # SHA256SUMS.txt: mantém as linhas dos arquivos que já estavam na Release e soma as dos novos
+          gh release download "$TAG" -p SHA256SUMS.txt -D antigo 2>/dev/null || true
+          sha256sum SuperFastFiles-* > novos.txt
+          touch antigo/SHA256SUMS.txt
+          awk 'NR==FNR {novo[$2]=1; next} !($2 in novo)' novos.txt antigo/SHA256SUMS.txt > SHA256SUMS.txt
+          cat novos.txt >> SHA256SUMS.txt
+          sort -k2 -o SHA256SUMS.txt SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" SuperFastFiles-* SHA256SUMS.txt --clobber

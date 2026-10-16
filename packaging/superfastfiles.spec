@@ -38,3 +38,13 @@ gui_exe = EXE(PYZ(gui.pure), gui.scripts, [], exclude_binaries=True, name="Super
               icon=icon, upx=False)
 cli_exe = EXE(PYZ(cli.pure), cli.scripts, [], exclude_binaries=True, name="sff", console=True, icon=icon, upx=False)
 coll = COLLECT(gui_exe, gui.binaries, gui.datas, cli_exe, cli.binaries, cli.datas, name="SuperFastFiles", upx=False)
+
+# macOS: aplicativo .app de verdade (o que o usuário arrasta para Aplicativos). O sff vai dentro, em
+# SuperFastFiles.app/Contents/MacOS/sff. O ícone PNG vira .icns pelo Pillow.
+if sys.platform == "darwin":
+    version = next(line.split('"')[1] for line in (SRC / "__init__.py").read_text().splitlines()
+                   if line.startswith("__version__"))
+    app = BUNDLE(coll, name="SuperFastFiles.app", icon=icon, bundle_identifier="br.com.ignf.superfastfiles",
+                 info_plist={"CFBundleName": "SuperFastFiles", "CFBundleDisplayName": "SuperFastFiles",
+                             "CFBundleShortVersionString": version, "CFBundleVersion": version,
+                             "NSHighResolutionCapable": True, "LSMinimumSystemVersion": "11.0"})
