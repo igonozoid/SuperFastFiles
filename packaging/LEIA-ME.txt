@@ -1,0 +1,79 @@
+SuperFastFiles — copiador de arquivos rápido
+Desenvolvido por IGNF Projetos e Serviços de Engenharia LTDA — https://ignf.com.br
+Código-fonte: https://github.com/igonozoid/SuperFastFiles
+
+==============================================================================
+PORTUGUÊS
+==============================================================================
+
+COMO USAR
+- Não precisa instalar. Descompacte a pasta onde quiser (ex.: C:\SuperFastFiles) e abra SuperFastFiles.exe.
+- sff.exe é a versão de linha de comando (ex.: sff copy D:\Fotos E:\Backup). Ajuda: sff --help
+- Preferências e histórico ficam na pasta "data", ao lado do programa. Para remover, apague a pasta inteira.
+
+"O WINDOWS PROTEGEU O COMPUTADOR" — É SEGURO?
+Sim. Esse aviso (SmartScreen) aparece para qualquer programa que não tenha uma assinatura digital paga e
+que ainda tenha poucos downloads. Ele NÃO quer dizer que um vírus foi encontrado.
+Para abrir: clique em "Mais informações" e depois em "Executar assim mesmo". Só é preciso fazer isso uma vez.
+Dica: antes de descompactar, clique com o botão direito no .zip › Propriedades › marque "Desbloquear" › OK.
+Assim o aviso não aparece para cada arquivo.
+
+Por que dá para confiar:
+- O código-fonte é público no GitHub: qualquer pessoa pode ler o que o programa faz.
+- O programa não acessa a internet, não instala nada, não pede administrador e não mexe no Registro do Windows.
+- Ele só lê e grava os arquivos e pastas que você escolher. Sincronizar e Apagar sempre pedem confirmação,
+  e o botão "Simular" mostra tudo o que seria feito sem alterar nada.
+- Você pode conferir se o arquivo baixado é o original: compare o código SHA-256 do .zip com o publicado
+  junto do download (arquivo SHA256SUMS.txt). No PowerShell:  Get-FileHash .\SuperFastFiles-*.zip
+- Você também pode enviar o .zip para https://www.virustotal.com (análise por dezenas de antivírus).
+  Programas feitos em Python às vezes recebem alarme falso de 1 ou 2 antivírus menos conhecidos.
+
+macOS: na primeira vez, clique com o botão direito no programa › Abrir › Abrir.
+Linux: dê permissão de execução (chmod +x SuperFastFiles sff) se o descompactador não der.
+
+==============================================================================
+ENGLISH
+==============================================================================
+
+HOW TO USE
+- No installation. Unzip the folder anywhere (e.g. C:\SuperFastFiles) and open SuperFastFiles.exe.
+- sff.exe is the command-line version (e.g. sff copy D:\Photos E:\Backup). Help: sff --help
+- Settings and history live in the "data" folder next to the program. To remove it, delete the whole folder.
+
+"WINDOWS PROTECTED YOUR PC" — IS IT SAFE?
+Yes. This warning (SmartScreen) appears for any program without a paid digital signature that still has few
+downloads. It does NOT mean a virus was found.
+To open it: click "More info", then "Run anyway". You only need to do this once.
+Tip: before unzipping, right-click the .zip › Properties › tick "Unblock" › OK, so the warning doesn't appear
+for each file.
+
+Why you can trust it:
+- The source code is public on GitHub: anyone can read what the program does.
+- The program doesn't access the internet, doesn't install anything, doesn't need administrator rights and
+  doesn't touch the Windows Registry.
+- It only reads and writes the files and folders you choose. Sync and Delete always ask for confirmation, and
+  "Simulate" shows everything that would be done without changing anything.
+- Check that your download is the original: compare the SHA-256 code of the .zip with the one published next to
+  the download (SHA256SUMS.txt file). In PowerShell:  Get-FileHash .\SuperFastFiles-*.zip
+- You can also upload the .zip to https://www.virustotal.com. Python programs sometimes get a false alarm from
+  1 or 2 lesser-known antivirus engines.
+
+macOS: the first time, right-click the program › Open › Open.
+Linux: make it executable (chmod +x SuperFastFiles sff) if your unzip tool didn't.
+
+==============================================================================
+ESPAÑOL
+==============================================================================
+
+CÓMO USARLO
+- No necesita instalación. Descomprime la carpeta donde quieras (p. ej. C:\SuperFastFiles) y abre
+  SuperFastFiles.exe. sff.exe es la versión de línea de comandos. Ayuda: sff --help
+- Las preferencias y el historial se guardan en la carpeta "data", junto al programa.
+
+"WINDOWS PROTEGIÓ SU PC" — ¿ES SEGURO?
+Sí. Este aviso (SmartScreen) aparece en cualquier programa sin firma digital de pago y con pocas descargas.
+NO significa que se haya encontrado un virus. Para abrirlo: "Más información" › "Ejecutar de todas formas".
+- El código fuente es público en GitHub. El programa no accede a internet, no instala nada, no pide
+  administrador y no modifica el Registro de Windows. Solo lee y escribe lo que tú elijas.
+- Comprueba que la descarga es la original comparando el SHA-256 del .zip con el publicado (SHA256SUMS.txt):
+  Get-FileHash .\SuperFastFiles-*.zip   — o súbelo a https://www.virustotal.com

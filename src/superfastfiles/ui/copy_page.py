@@ -250,6 +250,17 @@ class CopyPage(QWidget):
         self.preserve = QCheckBox(tr("Manter as datas originais"))
         self.preserve.setChecked(True)
         grid.addWidget(self.preserve, 3, 0, 1, 2)
+        xrow = QHBoxLayout()
+        xrow.setSpacing(SP_S)
+        self.extras = QCheckBox(tr("Modo servidor: copiar permissões e dados extras"))
+        xrow.addWidget(self.extras)
+        xrow.addWidget(help_icon(tr("Para servidores de arquivos e backups de empresa. Leva junto quem pode abrir "
+                                    "cada arquivo e pasta (permissões/ACL) e os dados extras que o sistema guarda "
+                                    "nos arquivos (fluxos alternativos no Windows, atributos estendidos no Linux e "
+                                    "macOS).\nPara uso pessoal, deixe desligado. Copiar o dono original exige "
+                                    "abrir o programa como administrador."), t))
+        xrow.addStretch(1)
+        grid.addLayout(xrow, 4, 0, 1, 2)
         ol.addLayout(grid)
         right.addWidget(opt_card)
 
@@ -342,6 +353,7 @@ class CopyPage(QWidget):
         self.ow_label.setEnabled(not delete)
         self.verify.setEnabled(not delete)
         self.preserve.setEnabled(not delete)
+        self.extras.setEnabled(not delete)
         self.contents_only.setText(tr("Apagar só o conteúdo das pastas (mantém a pasta vazia)") if delete else
                                    tr("Copiar só o conteúdo das pastas (sem criar a pasta no destino)"))
         self.run_btn.setText(run_label(m))
@@ -382,7 +394,7 @@ class CopyPage(QWidget):
         return JobSpec(mode=self.mode, sources=srcs, dest=self.dest.text().strip(),
                        overwrite=Overwrite(self.overwrite.currentData()), verify=self.verify.isChecked(),
                        include=self._patterns(self.include.text()), exclude=self._patterns(self.exclude.text()),
-                       preserve_times=self.preserve.isChecked(), dry_run=dry_run,
+                       preserve_times=self.preserve.isChecked(), extras=self.extras.isChecked(), dry_run=dry_run,
                        threads=settings.get_threads(), buffer_mb=settings.get_buffer_mb(),
                        disk_mode=settings.get_disk_mode(), unbuffered=settings.get_unbuffered(),
                        native=settings.get_native())
@@ -396,6 +408,7 @@ class CopyPage(QWidget):
         self.overwrite.setCurrentIndex(max(0, self.overwrite.findData(str(spec.overwrite))))
         self.verify.setChecked(spec.verify)
         self.preserve.setChecked(spec.preserve_times)
+        self.extras.setChecked(spec.extras)
         self.include.setText("; ".join(spec.include))
         self.exclude.setText("; ".join(spec.exclude))
         self.set_mode(spec.mode)
@@ -460,8 +473,8 @@ class CopyPage(QWidget):
     def _set_running(self, on: bool):
         self.pause_btn.setVisible(on)
         self.cancel_btn.setVisible(on)
-        for w in (self.sources, self.dest, self.overwrite, self.verify, self.preserve, self.include, self.exclude,
-                  self.contents_only):
+        for w in (self.sources, self.dest, self.overwrite, self.verify, self.preserve, self.extras, self.include,
+                  self.exclude, self.contents_only):
             w.setEnabled(not on)
         for b in self.mode_group.buttons():
             b.setEnabled(not on)

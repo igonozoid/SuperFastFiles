@@ -47,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--cached", action="store_true", help=tr("usar o cache do SO também nos arquivos grandes"))
             sp.add_argument("--no-native", action="store_true", help=tr("sempre usar o pipeline próprio"))
             sp.add_argument("--no-times", action="store_true", help=tr("não preservar datas"))
+            sp.add_argument("--server", action="store_true",
+                            help=tr("modo servidor: copiar também permissões (ACL) e dados extras (fluxos "
+                                    "alternativos/xattr)"))
     return p
 
 
@@ -69,6 +72,7 @@ def spec_from_args(a) -> JobSpec:
         spec.unbuffered = not a.cached
         spec.native = not a.no_native
         spec.preserve_times = not a.no_times
+        spec.extras = a.server
     return spec
 
 

@@ -15,7 +15,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from superfastfiles.engine import metadata
+from superfastfiles.engine import extras, metadata
 from superfastfiles.engine.copier_base import Cancelled, Copier, CopyContext, FileIO
 from superfastfiles.engine.disk import choose_strategy, disk_info
 from superfastfiles.engine.job import JobSpec, JobStats, Mode, Overwrite, PlanItem
@@ -166,12 +166,15 @@ class Runner:
             return
         if spec.mode == Mode.SYNC:
             self._sync_delete()
-        if spec.preserve_times and not spec.dry_run:
+        if (spec.preserve_times or spec.extras) and not spec.dry_run:
             for path, e in sorted(self.dir_times, key=lambda x: -x[0].count(os.sep)):
-                try:
-                    metadata.set_times(path, e.atime_ns, e.mtime_ns)
-                except OSError:
-                    pass
+                if spec.extras:
+                    self._extras(e.src, path, True)
+                if spec.preserve_times:
+                    try:
+                        metadata.set_times(path, e.atime_ns, e.mtime_ns)
+                    except OSError:
+                        pass
         if spec.mode == Mode.MOVE and not spec.dry_run:
             self._delete_moved_sources(roots)
 
@@ -292,6 +295,8 @@ class Runner:
                 stats.bytes_done(-sent[0])
                 sent[0] = 0
                 self.copier.copy(e.src, dst, e.size, e.mtime_ns, e.atime_ns, e.mode, ctx)
+            if spec.extras:
+                self._extras(e.src, dst, False)
             stats.add(done_files=1, verified_files=1 if spec.verify else 0)
             if spec.mode == Mode.MOVE:
                 with self._lock:
@@ -304,6 +309,13 @@ class Runner:
         except OSError as ex:
             stats.bytes_done(-sent[0])
             stats.error(display_path(e.src), ex.strerror or str(ex))
+
+    def _extras(self, src: str, dst: str, is_dir: bool):
+        """Modo servidor: permissões e dados extras. Se falhar, o conteúdo já está copiado: só registra."""
+        try:
+            extras.copy_extras(src, dst, is_dir, self.spec.preserve_times)
+        except OSError as ex:
+            self.stats.error(display_path(src), tr("permissões e dados extras: {error}", error=ex.strerror or ex))
 
     def _on_link(self, e: Entry):
         dst = os.path.join(self.dest, e.rel)

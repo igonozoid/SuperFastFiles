@@ -64,6 +64,7 @@ class JobSpec:
     disk_mode: str = "auto"                             # auto | ssd | hdd | same (mesmo disco)
     unbuffered: bool = True                             # E/S sem cache do sistema nos arquivos grandes
     native: bool = True                                 # usar a cópia nativa do SO quando não há verificação
+    extras: bool = False                                # modo servidor: permissões (ACL) e dados extras (ADS/xattr)
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)

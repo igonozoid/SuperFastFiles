@@ -82,6 +82,8 @@ class QueuePage(QWidget):
                 opts.append(tr("verificar"))
             if s.include or s.exclude:
                 opts.append(tr("filtros"))
+            if s.extras:
+                opts.append(tr("modo servidor"))
             rows.append([i, mode_label(s.mode), "; ".join(s.sources), s.dest or "—", ", ".join(opts)])
         self.model.set_rows(rows, q)
         self.view.setVisible(bool(q))

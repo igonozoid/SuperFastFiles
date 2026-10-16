@@ -42,3 +42,9 @@ Interface segue os padrões do **IGNF Finora** (`../Claude_IGNF Finora_Py`): mes
 - Testes: `pytest -q` (inclui pytest-qt, offscreen). Smoke: `python -m superfastfiles --teste`.
 - CLI: `sff copy ORIGEM... DESTINO [--verify] [--exclude X]` (ver `cli.py`).
 - Pacote portátil: `python tools/build.py` → `dist/SuperFastFiles/` (SuperFastFiles + sff) e .zip/.tar.gz.
+
+## README
+- Segue o modelo visual do README do Finora (`../Claude_IGNF Finora_Py/README.md`): cabeçalho centralizado com
+  emoji + nome, frase em negrito, linha "Desktop · …", badges shields.io; depois `---` e as seções Sobre (com
+  bullets de emoji), Funcionalidades (tabela Módulo | O que faz), Começando, Estrutura do projeto, Stack, Roadmap
+  (checklist) e Licença. Mantenha esse formato ao mudar o README.

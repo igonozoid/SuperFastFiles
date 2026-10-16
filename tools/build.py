@@ -4,8 +4,10 @@
 
 Resultado em dist/: a pasta SuperFastFiles (SuperFastFiles + sff) e SuperFastFiles-<versão>-<sistema>.zip/.tar.gz.
 Antes de compactar, roda o executável com --teste numa pasta de dados vazia e a CLI numa cópia de verdade:
-se algo faltar no pacote, o build falha.
+se algo faltar no pacote, o build falha. No fim grava dist/SHA256SUMS.txt (publique junto do .zip, para quem baixar
+conferir que o arquivo é o original).
 """
+import hashlib
 import os
 import shutil
 import subprocess
@@ -45,6 +47,7 @@ def pyinstaller() -> None:
     shutil.rmtree(PKG, ignore_errors=True)
     subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--distpath", str(DIST),
                     "--workpath", str(ROOT / "build"), str(ROOT / "packaging" / "superfastfiles.spec")], check=True)
+    shutil.copy(ROOT / "packaging" / "LEIA-ME.txt", PKG / "LEIA-ME.txt")
 
 
 def smoke_test() -> None:
@@ -79,6 +82,19 @@ def archive() -> Path:
     return out
 
 
+def checksum(archive: Path) -> str:
+    h = hashlib.sha256()
+    with open(archive, "rb") as f:
+        while chunk := f.read(1 << 20):
+            h.update(chunk)
+    line = f"{h.hexdigest()}  {archive.name}"
+    sums = DIST / "SHA256SUMS.txt"
+    old = [x for x in (sums.read_text(encoding="utf-8").splitlines() if sums.exists() else [])
+           if not x.endswith("  " + archive.name)]
+    sums.write_text("\n".join(old + [line]) + "\n", encoding="utf-8")
+    return line
+
+
 def size(path: Path) -> str:
     total = path.stat().st_size if path.is_file() else sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
     return f"{total / 1024 / 1024:.0f} MB"
@@ -89,4 +105,4 @@ if __name__ == "__main__":
     pyinstaller()
     smoke_test()
     out = archive()
-    print(f"Pasta: {PKG} ({size(PKG)})\nPacote: {out} ({size(out)})")
+    print(f"Pasta: {PKG} ({size(PKG)})\nPacote: {out} ({size(out)})\nSHA-256: {checksum(out)}")
